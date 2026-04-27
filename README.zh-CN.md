@@ -17,6 +17,7 @@
 | OpenAI       | Plus / Team / Pro | `~/.local/share/opencode/auth.json`            |
 | 智谱 AI      | Coding Plan       | `~/.local/share/opencode/auth.json`            |
 | Z.ai         | Coding Plan       | `~/.local/share/opencode/auth.json`            |
+| Synthetic    | API Key           | `~/.local/share/opencode/auth.json`            |
 | GitHub Copilot | Individual / Business | `~/.local/share/opencode/auth.json`            |
 | Google Cloud | Antigravity       | `~/.config/opencode/antigravity-accounts.json` |
 
@@ -161,7 +162,7 @@ Claude     2d 9h      ░░░░░░░░░░░░░░░░░░░�
 
 无需额外配置。插件自动从以下位置读取认证信息：
 
-- **OpenAI、智谱 AI、Z.ai 和 GitHub Copilot**: `~/.local/share/opencode/auth.json`
+- **OpenAI、智谱 AI、Z.ai、Synthetic 和 GitHub Copilot**: `~/.local/share/opencode/auth.json`
 - **Google Cloud**: `~/.config/opencode/antigravity-accounts.json`
 
 ### Google Cloud 设置
@@ -182,6 +183,7 @@ Claude     2d 9h      ░░░░░░░░░░░░░░░░░░░�
 - `https://chatgpt.com/backend-api/wham/usage` - OpenAI 官方额度查询接口
 - `https://bigmodel.cn/api/monitor/usage/quota/limit` - 智谱 AI 官方额度查询接口
 - `https://api.z.ai/api/monitor/usage/quota/limit` - Z.ai 官方额度查询接口
+- `https://api.synthetic.new/v2/quotas` - Synthetic 官方额度查询接口
 - `https://api.github.com/copilot_internal/user` - GitHub Copilot 官方 API
 - `https://oauth2.googleapis.com/token` - Google 官方 OAuth 接口
 - `https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels` - Google Cloud 官方接口

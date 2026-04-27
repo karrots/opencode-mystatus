@@ -1,0 +1,90 @@
+Add support for `synthetic.new` quotas to this OpenCode plugin repo.
+
+Context:
+- This repo is `opencode-mystatus`
+- It exposes a single `mystatus` tool that aggregates quota info from multiple providers
+- Current architecture is simple and hardcoded:
+  - `plugin/mystatus.ts` is the central entrypoint and dispatches one query per provider
+  - each provider has its own module under `plugin/lib/`
+  - shared types are in `plugin/lib/types.ts`
+  - shared formatting/fetch helpers are in `plugin/lib/utils.ts`
+  - user-facing strings are in `plugin/lib/i18n.ts`
+- Existing providers include OpenAI, Zhipu AI, Z.ai, Google Antigravity, and GitHub Copilot
+
+Goal:
+Add `synthetic.new` as a new quota source.
+
+Auth details:
+- Synthetic credentials are stored in `~/.local/share/opencode/auth.json`
+- The auth shape is:
+
+```json
+"synthetic": {
+  "type": "api",
+  "key": "<keygoeshere>"
+}
+```
+
+Quota API:
+- Endpoint: `GET https://api.synthetic.new/v2/quotas`
+- Header: `Authorization: Bearer <API_KEY>`
+
+Example response:
+```json
+{
+  "subscription": {
+    "limit": 135,
+    "requests": 0,
+    "renewsAt": "2025-09-21T14:36:14.288Z"
+  }
+}
+```
+
+Implementation requirements:
+1. Add a new provider module at `plugin/lib/synthetic.ts`
+2. Reuse the existing API-key auth type pattern already used by Zhipu/Z.ai
+3. Update `plugin/lib/types.ts` so `AuthData` includes `synthetic`
+4. Update `plugin/mystatus.ts` to:
+   - import the Synthetic query function
+   - include it in `Promise.all(...)`
+   - render a new result section for Synthetic
+   - include Synthetic in the tool description
+5. Update `plugin/lib/i18n.ts` to add:
+   - a section title for Synthetic
+   - a Synthetic API error message
+   - a label like `Subscription quota`
+   - include Synthetic in the “supported account types” copy
+6. Update docs:
+   - `README.md`
+   - `README.zh-CN.md`
+   - `package.json` description if needed
+7. Keep changes minimal and consistent with the current style
+
+Formatting expectations for Synthetic output:
+- Use the existing progress bar helpers
+- Output should look like the other providers, e.g.:
+  - `Account:        Synthetic (API)`
+  - blank line
+  - `Subscription quota`
+  - progress bar with remaining percentage
+  - `Used: X / Y`
+  - `Quota resets: <countdown> (<renewsAt>)`
+- Use existing shared helpers for countdown formatting where practical
+
+Constraints:
+- Prefer the smallest correct change
+- Do not refactor the whole architecture
+- Match the existing code style and structure
+- Use `apply_patch` for edits
+- Do not commit unless explicitly asked
+
+Validation:
+- Run `npm run typecheck`
+- Run `npm run build`
+- If dependencies are missing and `tsc` is not found, install them with `npm install` first, then rerun checks
+
+Definition of done:
+- Synthetic quota support is fully wired into the plugin
+- Docs mention Synthetic as a supported platform
+- Typecheck and build pass
+- No unrelated refactors
