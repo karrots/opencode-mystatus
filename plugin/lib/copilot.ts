@@ -41,7 +41,13 @@ interface QuotaDetail {
 interface QuotaSnapshots {
   chat?: QuotaDetail;
   completions?: QuotaDetail;
-  premium_interactions: QuotaDetail;
+  premium_interactions?: QuotaDetail;
+}
+
+// Free/Limited plan quota structure - simple number quotas (not objects)
+interface LimitedUserQuotas {
+  chat: number;
+  completions: number;
 }
 
 interface CopilotUsageResponse {
@@ -53,8 +59,11 @@ interface CopilotUsageResponse {
   copilot_plan: string;
   organization_login_list: unknown[];
   organization_list: unknown[];
-  quota_reset_date: string;
-  quota_snapshots: QuotaSnapshots;
+  quota_reset_date?: string;
+  limited_user_reset_date?: string;
+  quota_snapshots?: QuotaSnapshots;
+  monthly_quotas?: Record<string, number>;
+  limited_user_quotas?: LimitedUserQuotas;
 }
 
 interface CopilotTokenResponse {
@@ -357,6 +366,12 @@ function formatCopilotUsage(data: CopilotUsageResponse): string {
   // Account info
   lines.push(`${t.account}        GitHub Copilot (${data.copilot_plan})`);
   lines.push("");
+
+  // Check if quota_snapshots exists
+  if (!data.quota_snapshots) {
+    lines.push(t.noQuotaData);
+    return lines.join("\n");
+  }
 
   // Premium requests (main quota)
   const premium = data.quota_snapshots.premium_interactions;
