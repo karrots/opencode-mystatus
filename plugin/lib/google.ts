@@ -299,9 +299,9 @@ function formatAccountQuota(quotaInfo: AccountQuotaInfo): string {
 
 /**
  * 查询所有 Antigravity 账号的额度
- * @returns 查询结果
+ * @returns 查询结果，如果未配置返回 null
  */
-export async function queryGoogleUsage(): Promise<QueryResult> {
+export async function queryGoogleUsage(): Promise<QueryResult | null> {
   try {
     // 读取账号文件
     const content = await readFile(getAntigravityAccountsPath(), "utf-8");
@@ -362,6 +362,10 @@ export async function queryGoogleUsage(): Promise<QueryResult> {
       output: outputs.join("\n\n"),
     };
   } catch (err) {
+    // Return null if file doesn't exist (not configured)
+    if (err instanceof Error && 'code' in err && (err as { code: string }).code === 'ENOENT') {
+      return null;
+    }
     return {
       success: false,
       error: err instanceof Error ? err.message : String(err),

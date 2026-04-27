@@ -502,11 +502,8 @@ export async function queryCopilotUsage(
   // Strategy 2: Try internal API with OAuth token (legacy, may not work with new OpenCode auth)
   // Check if account exists and has a refresh token (the GitHub OAuth token)
   if (!authData || authData.type !== "oauth" || !authData.refresh) {
-    // No auth data and no PAT config - show setup instructions
-    return {
-      success: false,
-      error: t.copilotQuotaUnavailable + "\n\n" + t.copilotQuotaWorkaround,
-    };
+    // No auth data and no PAT config - not configured, skip silently
+    return null;
   }
 
   try {
