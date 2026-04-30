@@ -346,6 +346,8 @@ function getResetCountdown(resetDate: string): string {
   const now = new Date();
   const diffMs = reset.getTime() - now.getTime();
 
+   if (Number.isNaN(reset.getTime())) return t.unknown;
+
   if (diffMs <= 0) return t.resetsSoon;
 
   const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
@@ -401,8 +403,11 @@ function formatCopilotUsage(data: CopilotUsageResponse): string {
 
   // Reset date
   lines.push("");
-  const resetCountdown = getResetCountdown(data.quota_reset_date);
-  lines.push(`${t.quotaResets}: ${resetCountdown} (${data.quota_reset_date})`);
+  const resetDate = data.quota_reset_date ?? t.unknown;
+  const resetCountdown = data.quota_reset_date
+    ? getResetCountdown(data.quota_reset_date)
+    : t.unknown;
+  lines.push(`${t.quotaResets}: ${resetCountdown} (${resetDate})`);
 
   return lines.join("\n");
 }

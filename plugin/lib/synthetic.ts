@@ -46,32 +46,73 @@ function formatRemainPercent(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value * 10) / 10));
 }
 
+function formatLocalTime(resetAt: string | undefined): string {
+  return resetAt
+    ? new Date(resetAt).toLocaleString(undefined, { timeZoneName: "short" })
+    : t.unknown;
+}
+
+function getTimeUntil(resetAt: string | undefined): number | null {
+  if (!resetAt) return null;
+
+  const resetTime = new Date(resetAt).getTime();
+  if (Number.isNaN(resetTime)) return null;
+
+  return Math.max(0, Math.floor((resetTime - Date.now()) / 1000));
+}
+
+function parseNumericValue(value: string | undefined): number {
+  if (!value) return Number.NaN;
+
+  const normalized = value.replace(/[^0-9.-]+/g, "");
+  return Number(normalized);
+}
+
+function getFullRecovery(
+  resetAt: string | undefined,
+  used: number,
+  max: number,
+  tickPercent: number,
+): string | null {
+  const secondsUntilReset = getTimeUntil(resetAt);
+  if (secondsUntilReset === null || max <= 0 || tickPercent <= 0) return null;
+
+  const multiplier = used / (max * tickPercent);
+  const fullRecoverySeconds = Math.max(0, Math.round(secondsUntilReset * multiplier));
+  const fullRecoveryAt = new Date(Date.now() + fullRecoverySeconds * 1000).toISOString();
+
+  return `${t.fullRecoveryLabel}: ${formatDuration(fullRecoverySeconds)} (${formatLocalTime(fullRecoveryAt)})`;
+}
+
 function formatQuotaSection(
   title: string,
   remainPercent: number,
   amountLabel: string,
   amountText: string,
+  resetLabel: string,
   resetAt: string | undefined,
+  fullRecoveryLine?: string,
 ): string[] {
   const progressBar = createProgressBar(remainPercent);
   const renewCountdown = getRenewCountdown(resetAt);
-  const renewsAt = resetAt || t.unknown;
+  const renewsAt = formatLocalTime(resetAt);
 
-  return [
+  const lines = [
     title,
     `${progressBar} ${t.remaining(remainPercent)}`,
     `${amountLabel}: ${amountText}`,
-    `${t.quotaResets}: ${renewCountdown} (${renewsAt})`,
+    `${resetLabel}: ${renewCountdown} (${renewsAt})`,
   ];
+
+  if (fullRecoveryLine) lines.push(fullRecoveryLine);
+
+  return lines;
 }
 
 function getRenewCountdown(renewsAt: string | undefined): string {
-  if (!renewsAt) return t.unknown;
+  const seconds = getTimeUntil(renewsAt);
+  if (seconds === null) return t.unknown;
 
-  const renewTime = new Date(renewsAt).getTime();
-  if (Number.isNaN(renewTime)) return t.unknown;
-
-  const seconds = Math.max(0, Math.floor((renewTime - Date.now()) / 1000));
   return formatDuration(seconds);
 }
 
@@ -105,18 +146,35 @@ function formatSyntheticUsage(data: SyntheticQuotaResponse): string {
     typeof rollingLimit.remaining === "number" &&
     typeof rollingLimit.max === "number"
   ) {
-    const remaining = Math.max(0, rollingLimit.remaining);
-    const limit = Math.max(0, rollingLimit.max);
-    const used = Math.max(0, limit - remaining);
+    const rawRemaining = Math.max(0, rollingLimit.remaining);
+    const rawLimit = Math.max(0, rollingLimit.max);
+    const rawUsed = Math.max(0, rawLimit - rawRemaining);
+    const remaining = Math.round(rawRemaining);
+    const limit = Math.round(rawLimit);
+    const used = Math.max(0, Math.round(rawUsed));
+    const displayLimit = Math.round(limit);
     const remainPercent =
-      limit > 0 ? formatRemainPercent((remaining / limit) * 100) : 0;
+      rawLimit > 0 ? formatRemainPercent((rawRemaining / rawLimit) * 100) : 0;
+    const fullRecoveryLine =
+      rawRemaining < rawLimit &&
+      typeof rollingLimit.tickPercent === "number" &&
+      rollingLimit.tickPercent > 0
+        ? getFullRecovery(
+            rollingLimit.nextTickAt,
+            rawUsed,
+            rawLimit,
+            rollingLimit.tickPercent,
+          )
+        : null;
     lines.push(
       ...formatQuotaSection(
         t.syntheticRollingLimit,
         remainPercent,
         t.used,
-        `${used} / ${limit}`,
+        `${used} / ${displayLimit}`,
+        t.nextRecoveryLabel,
         rollingLimit.nextTickAt,
+        fullRecoveryLine ?? undefined,
       ),
     );
     hasQuotaData = true;
@@ -135,14 +193,32 @@ function formatSyntheticUsage(data: SyntheticQuotaResponse): string {
     weeklyLimit.remainingCredits &&
     weeklyLimit.maxCredits
   ) {
+    const remainingCredits = parseNumericValue(weeklyLimit.remainingCredits);
+    const maxCredits = parseNumericValue(weeklyLimit.maxCredits);
+    const nextRegenCredits = parseNumericValue(weeklyLimit.nextRegenCredits ?? "0");
     const remainPercent = formatRemainPercent(weeklyLimit.percentRemaining);
+    const fullRecoveryLine =
+      Number.isFinite(remainingCredits) &&
+      Number.isFinite(maxCredits) &&
+      Number.isFinite(nextRegenCredits) &&
+      remainingCredits < maxCredits &&
+      nextRegenCredits > 0
+        ? getFullRecovery(
+            weeklyLimit.nextRegenAt,
+            Math.max(0, maxCredits - remainingCredits),
+            maxCredits,
+            nextRegenCredits / maxCredits,
+          )
+        : null;
     lines.push(
       ...formatQuotaSection(
         t.syntheticWeeklyLimit,
         remainPercent,
         t.remainingLabel,
-        `${weeklyLimit.remainingCredits} / ${weeklyLimit.maxCredits}`,
+        `${weeklyLimit.remainingCredits} / ${weeklyLimit.maxCredits} (+${weeklyLimit.nextRegenCredits ?? "0"})`,
+        t.nextRecoveryLabel,
         weeklyLimit.nextRegenAt,
+        fullRecoveryLine ?? undefined,
       ),
     );
     hasQuotaData = true;
@@ -165,6 +241,7 @@ function formatSyntheticUsage(data: SyntheticQuotaResponse): string {
         remainPercent,
         t.used,
         `${used} / ${limit}`,
+        t.fullResetLabel,
         searchHourly.renewsAt,
       ),
     );
@@ -200,6 +277,7 @@ function formatSyntheticUsage(data: SyntheticQuotaResponse): string {
       remainPercent,
       t.used,
       `${used} / ${limit}`,
+      t.fullResetLabel,
       subscription.renewsAt,
     ),
   ].join("\n");

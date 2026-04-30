@@ -62,6 +62,9 @@ const translations = {
     unknown: "未知",
     used: "已用",
     remainingLabel: "剩余",
+    fullResetLabel: "完全重置",
+    nextRecoveryLabel: "下次恢复",
+    fullRecoveryLabel: "完全恢复",
 
     // 错误信息
     authError: (path: string, err: string) =>
@@ -148,6 +151,9 @@ const translations = {
     unknown: "unknown",
     used: "Used",
     remainingLabel: "Remaining",
+    fullResetLabel: "Full Reset",
+    nextRecoveryLabel: "Next Recovery",
+    fullRecoveryLabel: "Full Recovery",
 
     // 错误信息
     authError: (path: string, err: string) =>
