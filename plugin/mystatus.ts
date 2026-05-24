@@ -1,19 +1,10 @@
-/**
- * OpenCode 额度状态查询插件
- *
- * [输入]: ~/.local/share/opencode/auth.json 和 ~/.config/opencode/antigravity-accounts.json 中的认证信息
- * [输出]: 带进度条的额度使用情况展示
- * [定位]: 通过 mystatus 工具查询各账号额度
- * [同步]: lib/openai.ts, lib/zhipu.ts, lib/google.ts, lib/types.ts, lib/i18n.ts
- */
-
-import { type Plugin, tool } from "@opencode-ai/plugin";
+import type { Plugin } from "@opencode-ai/plugin";
 import { readFile } from "fs/promises";
 import { homedir } from "os";
 import { join } from "path";
 
 import { t } from "./lib/i18n";
-import { type AuthData, type QueryResult } from "./lib/types";
+import { type AuthData } from "./lib/types";
 import { queryOpenAIUsage } from "./lib/openai";
 import { querySyntheticUsage } from "./lib/synthetic";
 import { queryZaiUsage, queryZhipuUsage } from "./lib/zhipu";
@@ -21,18 +12,28 @@ import { queryGoogleUsage } from "./lib/google";
 import { queryCopilotUsage } from "./lib/copilot";
 
 // ============================================================================
-// 插件导出（唯一导出，避免其他函数被当作插件加载）
+// 插件导出（直接执行模式，绕过 LLM）
 // ============================================================================
 
-export const MyStatusPlugin: Plugin = async () => {
+export const MyStatusPlugin: Plugin = async (ctx) => {
   return {
-    tool: {
-      mystatus: tool({
-        description:
-          "Query account quota usage for all configured AI platforms. Returns remaining quota percentages, usage stats, and reset countdowns with visual progress bars. Currently supports OpenAI (ChatGPT/Codex), Zhipu AI, Z.ai, Synthetic, Google Antigravity, and GitHub Copilot.",
-        args: {},
-        async execute() {
-          // 1. 读取 auth.json
+    event: async ({ event }) => {
+      // Intercept the /mystatus slash command
+      if (
+        event.type === "tui.command.execute" &&
+        "properties" in event &&
+        (event.properties as { command?: string }).command === "mystatus"
+      ) {
+        // Show a native loading toast in the OpenCode TUI
+        await ctx.client.tui.showToast({
+          body: {
+            message: "Fetching AI Quotas...",
+            variant: "info",
+          },
+        });
+
+        try {
+          // 1. Read auth.json
           const authPath = join(homedir(), ".local/share/opencode/auth.json");
           let authData: AuthData;
 
@@ -40,48 +41,44 @@ export const MyStatusPlugin: Plugin = async () => {
             const content = await readFile(authPath, "utf-8");
             authData = JSON.parse(content);
           } catch (err) {
-            return t.authError(
-              authPath,
-              err instanceof Error ? err.message : String(err),
+            process.stderr.write(
+              `\n${t.authError(authPath, err instanceof Error ? err.message : String(err))}\n`,
             );
+            return;
           }
 
-          // 2. 并行查询所有平台（Google 不依赖 authData）
-          const [openaiResult, zhipuResult, zaiResult, syntheticResult, googleResult, copilotResult] =
-            await Promise.all([
-              queryOpenAIUsage(authData.openai),
-              queryZhipuUsage(authData["zhipuai-coding-plan"]),
-              queryZaiUsage(authData["zai-coding-plan"]),
-              querySyntheticUsage(authData.synthetic),
-              queryGoogleUsage(),
-              queryCopilotUsage(authData["github-copilot"]),
-            ]);
+          // 2. Parallel query all platforms (Google does not depend on authData)
+          const [
+            openaiResult,
+            zhipuResult,
+            zaiResult,
+            syntheticResult,
+            googleResult,
+            copilotResult,
+          ] = await Promise.all([
+            queryOpenAIUsage(authData.openai),
+            queryZhipuUsage(authData["zhipuai-coding-plan"]),
+            queryZaiUsage(authData["zai-coding-plan"]),
+            querySyntheticUsage(authData.synthetic),
+            queryGoogleUsage(),
+            queryCopilotUsage(authData["github-copilot"]),
+          ]);
 
-          // 3. 收集结果
+          // 3. Collect results
           const results: string[] = [];
           const errors: string[] = [];
 
-          // 处理 OpenAI 结果
           collectResult(openaiResult, t.openaiTitle, results, errors);
-
-          // 处理智谱结果
           collectResult(zhipuResult, t.zhipuTitle, results, errors);
-
-          // 处理 Z.ai 结果
           collectResult(zaiResult, t.zaiTitle, results, errors);
-
-          // 处理 Synthetic 结果
           collectResult(syntheticResult, t.syntheticTitle, results, errors);
-
-          // 处理 Google 结果
           collectResult(googleResult, t.googleTitle, results, errors);
-
-          // 处理 GitHub Copilot 结果
           collectResult(copilotResult, t.copilotTitle, results, errors);
 
-          // 4. 汇总输出
+          // 4. Output directly to stdout, bypassing the LLM stream
           if (results.length === 0 && errors.length === 0) {
-            return t.noAccounts;
+            process.stdout.write("\n" + t.noAccounts + "\n");
+            return;
           }
 
           let output = results.join("\n");
@@ -91,19 +88,25 @@ export const MyStatusPlugin: Plugin = async () => {
             output += t.queryFailed + errors.join("\n");
           }
 
-          return output;
-        },
-      }),
+          process.stdout.write("\n" + output + "\n");
+        } catch (error) {
+          process.stderr.write(
+            `\nError fetching status: ${(error as Error).message}\n`,
+          );
+        }
+      }
     },
   };
 };
 
-/**
- * 收集查询结果到 results 和 errors 数组
- * 注意：这是内部函数，不导出，避免被 OpenCode 当作插件加载
- */
+export default MyStatusPlugin;
+
+// ============================================================================
+// Internal helpers
+// ============================================================================
+
 function collectResult(
-  result: QueryResult | null,
+  result: import("./lib/types").QueryResult | null,
   title: string,
   results: string[],
   errors: string[],
@@ -111,7 +114,7 @@ function collectResult(
   if (!result) return;
 
   if (result.success && result.output) {
-    if (results.length > 0) results.push(""); // 分隔符
+    if (results.length > 0) results.push(""); // separator
     results.push(title);
     results.push("");
     results.push(result.output);
