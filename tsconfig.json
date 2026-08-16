@@ -12,8 +12,10 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": false
+    "noEmit": false,
+    "jsx": "preserve",
+    "jsxImportSource": "@opentui/solid"
   },
-  "include": ["plugin/**/*.ts"],
+  "include": ["plugin/**/*.ts", "plugin/**/*.tsx"],
   "exclude": ["node_modules", "dist"]
 }

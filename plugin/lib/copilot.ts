@@ -11,14 +11,14 @@
  * before calling the internal quota API.
  */
 
-import { t } from "./i18n";
+import { t } from "./i18n.js";
 import {
   type QueryResult,
   type CopilotAuthData,
   type CopilotQuotaConfig,
   type CopilotTier,
-} from "./types";
-import { createProgressBar, fetchWithTimeout } from "./utils";
+} from "./types.js";
+import { createProgressBar, fetchWithTimeout } from "./utils.js";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";

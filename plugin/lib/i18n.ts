@@ -55,6 +55,7 @@ const translations = {
     dayLimit: (d: number) => `${d}天限额`,
     remaining: (p: number) => `剩余 ${p}%`,
     resetIn: (t: string) => `重置: ${t}后`,
+    resetInPrefix: "重置: ",
     limitReached: "⚠️ 已达到限额上限!",
 
     // 通用
@@ -144,6 +145,7 @@ const translations = {
     dayLimit: (d: number) => `${d}-day limit`,
     remaining: (p: number) => `${p}% remaining`,
     resetIn: (t: string) => `Resets in: ${t}`,
+    resetInPrefix: "Resets in: ",
     limitReached: "⚠️ Rate limit reached!",
 
     // 通用

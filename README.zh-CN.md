@@ -36,51 +36,27 @@ Install the opencode-mystatus plugin by following: https://raw.githubusercontent
 
 安装此插件需要执行以下步骤：
 
-1. 在 `~/.config/opencode/opencode.json` 的 `plugin` 数组中添加 `"opencode-mystatus"`
+1. 从仓库根目录运行 `./load-local-plugin.sh`。
 
-2. 在同一文件的 `command` 对象中添加斜杠命令：
+2. 确认 `~/.config/opencode/opencode.json` 中没有 `plugin` 数组里的 `"opencode-mystatus"`，也没有 `command.mystatus` 配置。
 
-```json
-{
-  "plugin": ["opencode-mystatus"],
-  "command": {
-    "mystatus": {
-      "description": "Query quota usage for all AI accounts",
-      "template": "Use the mystatus tool to query quota usage. Return the result as-is without modification."
-    }
-  }
-}
-```
-
-3. 告诉用户重启 OpenCode。
+3. 告诉用户完全退出并重启 OpenCode。
 
 </details>
 
-### 手动安装
+### 本地安装
 
-1. 在 `~/.config/opencode/opencode.json` 中添加插件和斜杠命令：
+从仓库根目录运行：
 
-```json
-{
-  "plugin": ["opencode-mystatus"],
-  "command": {
-    "mystatus": {
-      "description": "Query quota usage for all AI accounts",
-      "template": "Use the mystatus tool to query quota usage. Return the result as-is without modification."
-    }
-  }
-}
+```bash
+./load-local-plugin.sh
 ```
 
-2. 重启 OpenCode
+脚本会将 `plugin/mystatus.ts` 和 `plugin/lib/*.ts` 复制到 `~/.config/opencode/plugins`，OpenCode 会自动发现该目录下的本地 `*.ts` 插件。脚本也会清理旧的 `~/.config/opencode/plugin` 和 `~/.config/opencode/command` 文件。
 
-### 从本地文件安装
+本地开发时不要在 `plugin` 数组中添加 `"opencode-mystatus"`，也不要手动配置 `command.mystatus`。插件会自行注册 `/mystatus` 命令。
 
-将插件文件复制到 OpenCode 配置目录：
-
-1. 将 `plugin/mystatus.ts` 和 `plugin/lib/` 复制到 `~/.config/opencode/plugin/`
-2. 将 `command/mystatus.md` 复制到 `~/.config/opencode/command/`
-3. 重启 OpenCode
+复制完成后完全退出并重启 OpenCode。
 
 ## 使用方法
 
@@ -92,15 +68,7 @@ Install the opencode-mystatus plugin by following: https://raw.githubusercontent
 /mystatus
 ```
 
-### 方式二：自然语言
-
-直接用自然语言提问，例如：
-
-- "帮我查看 Codex 的额度"
-- "我的 OpenAI 还剩多少额度？"
-- "查看 AI 账号状态"
-
-OpenCode 会自动调用 mystatus 工具来回答你的问题。
+`/mystatus` 是本地命令，不会作为提示词发送给 LLM。
 
 ## 输出示例
 

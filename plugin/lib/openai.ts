@@ -7,14 +7,14 @@
  * [同步]: mystatus.ts, types.ts, utils.ts, i18n.ts
  */
 
-import { t } from "./i18n";
-import { type QueryResult, type OpenAIAuthData } from "./types";
+import { t } from "./i18n.js";
+import { type QueryResult, type OpenAIAuthData } from "./types.js";
 import {
   formatDuration,
   createProgressBar,
   calcRemainPercent,
   fetchWithTimeout,
-} from "./utils";
+} from "./utils.js";
 
 // ============================================================================
 // 类型定义

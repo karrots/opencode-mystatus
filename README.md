@@ -17,55 +17,28 @@ Running `/mystatus` directly executes local queries against your accounts, bypas
 
 ## Installation & Setup
 
-### 1. Link the Plugin to OpenCode
+### 1. Copy the Local Plugin
 
-Ensure this repository is linked or copied into your local OpenCode configuration directory:
-
-```bash
-# Create local plugins directory if it doesn't exist
-mkdir -p ~/.config/opencode/plugins
-
-# Symlink this repository into your plugins folder
-ln -sfn $(pwd) ~/.config/opencode/plugins/opencode-mystatus
-```
-
-### 2. Install Dependencies
-
-This plugin runs natively inside Bun (OpenCode's native engine). Install dependencies:
+Run the local loader from this repository:
 
 ```bash
-cd ~/.config/opencode/plugins/opencode-mystatus
-bun install
+./load-local-plugin.sh
 ```
 
-### 3. Register the Command
+The loader copies `plugin/mystatus.ts` and `plugin/lib/*.ts` into `~/.config/opencode/plugins`, where OpenCode auto-discovers local `*.ts` plugins. It also removes stale files from the old `~/.config/opencode/plugin` and `~/.config/opencode/command` locations.
 
-Update your global OpenCode configuration file to enable the local execution handler.
+Do not add `opencode-mystatus` to the `plugin` array for local development. Do not configure `command.mystatus` in `~/.config/opencode/opencode.json`; the plugin registers `/mystatus` itself.
 
-Open `~/.config/opencode/opencode.json` and add the plugin and direct command mapping:
-
-```json
-{
-  "plugin": ["opencode-mystatus"],
-  "command": {
-    "mystatus": {
-      "description": "Query account quota usage instantly without LLM routing",
-      "execute": "local"
-    }
-  }
-}
-```
-
-### 4. Provide Credentials
+### 2. Provide Credentials
 
 The local scripts fetch data using configurations found at these paths:
 
 - **OpenAI Keys:** Configured in `~/.local/share/opencode/auth.json`
 - **Copilot / Antigravity Accounts:** Configured in `~/.config/opencode/antigravity-accounts.json`
 
-### 5. Restart OpenCode
+### 3. Restart OpenCode
 
-For changes to take effect, fully restart your OpenCode terminal interface:
+OpenCode loads plugins and commands during startup. Fully quit and restart OpenCode after copying or changing this plugin:
 
 ```bash
 opencode restart
@@ -107,10 +80,10 @@ Claude     2d 9h      ░░░░░░░░░░░░░░░░░░░�
 ## Development
 
 ```bash
-# Using Bun
-bun install
-bun run typecheck
-bun run build
+npm install
+npm run typecheck
+npm test
+npm run build
 ```
 
 ## License

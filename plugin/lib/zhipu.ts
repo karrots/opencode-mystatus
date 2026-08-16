@@ -7,12 +7,12 @@
  * [同步]: mystatus.ts, types.ts, utils.ts, i18n.ts
  */
 
-import { t } from "./i18n";
+import { t } from "./i18n.js";
 import {
   type QueryResult,
   type ZhipuAuthData,
   HIGH_USAGE_THRESHOLD,
-} from "./types";
+} from "./types.js";
 import {
   formatDuration,
   createProgressBar,
@@ -21,7 +21,7 @@ import {
   fetchWithTimeout,
   safeMax,
   maskString,
-} from "./utils";
+} from "./utils.js";
 
 // ============================================================================
 // 类型定义

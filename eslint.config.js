@@ -7,7 +7,7 @@ import globals from "globals";
 export default [
   // 忽略文件
   {
-    ignores: ["dist/**", "node_modules/**"],
+    ignores: ["dist/**", "node_modules/**", "test/**/*.mjs"],
   },
 
   // 基础配置
@@ -15,12 +15,15 @@ export default [
 
   // TypeScript 配置
   {
-    files: ["**/*.ts"],
+    files: ["**/*.ts", "**/*.tsx"],
     languageOptions: {
       parser: tsparser,
       parserOptions: {
         ecmaVersion: "latest",
         sourceType: "module",
+        ecmaFeatures: {
+          jsx: true,
+        },
       },
       globals: {
         ...globals.node,

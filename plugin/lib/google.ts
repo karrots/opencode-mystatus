@@ -11,14 +11,14 @@ import { readFile } from "fs/promises";
 import { homedir } from "os";
 import { join } from "path";
 
-import { t, currentLang } from "./i18n";
+import { t, currentLang } from "./i18n.js";
 import {
   type QueryResult,
   type AntigravityAccount,
   type AntigravityAccountsFile,
   HIGH_USAGE_THRESHOLD,
-} from "./types";
-import { createProgressBar, fetchWithTimeout, safeMax } from "./utils";
+} from "./types.js";
+import { createProgressBar, fetchWithTimeout, safeMax } from "./utils.js";
 
 // ============================================================================
 // 类型定义
