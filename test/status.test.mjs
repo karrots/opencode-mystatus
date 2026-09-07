@@ -3,9 +3,8 @@ import test from "node:test";
 
 process.env.LANG = "en_US.UTF-8";
 
-const { formatStatusResults, getStatusText } = await import(
-  "../dist/plugin/lib/status.js"
-);
+const { formatStatusResults, getStatusText } =
+  await import("../dist/plugin/lib/status.js");
 
 test("formatStatusResults combines successful providers and failures", () => {
   const output = formatStatusResults([
@@ -76,4 +75,44 @@ test("getStatusText reads auth and passes provider-specific auth data", async ()
     ["google", undefined],
     ["copilot", "copilot-refresh"],
   ]);
+});
+
+test("plugin module exports conforms to OpenCode v2 PluginModule structure", async () => {
+  const mystatusModule = await import("../dist/plugin/mystatus.js");
+
+  assert.equal(typeof mystatusModule.MyStatusPlugin, "function");
+  assert.equal(typeof mystatusModule.setup, "function");
+  assert.equal(typeof mystatusModule.server, "function");
+  assert.equal(mystatusModule.server, mystatusModule.MyStatusPlugin);
+  assert.equal(mystatusModule.setup, mystatusModule.MyStatusPlugin);
+
+  assert.equal(typeof mystatusModule.default, "object");
+  assert.equal(mystatusModule.default.id, "opencode-mystatus");
+  assert.equal(typeof mystatusModule.default.setup, "function");
+  assert.equal(typeof mystatusModule.default.server, "function");
+});
+
+test("package.json declares oc-plugin targets and entry points", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const pkg = JSON.parse(
+    await readFile(new URL("../package.json", import.meta.url), "utf-8"),
+  );
+
+  assert.deepEqual(pkg["oc-plugin"], ["server", "tui"]);
+  assert.equal(pkg.exports["."].import, "./dist/plugin/mystatus.js");
+  assert.equal(pkg.exports["./tui"].import, "./dist/plugin/mystatus-tui.jsx");
+});
+
+test("tui module compiled declaration confirms TuiPluginModule structure", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const dts = await readFile(
+    new URL("../dist/plugin/mystatus-tui.d.ts", import.meta.url),
+    "utf-8",
+  );
+
+  assert.match(dts, /export declare const setup: TuiPlugin;/);
+  assert.match(dts, /export declare const tui: TuiPlugin;/);
+  assert.match(dts, /setup:\s*TuiPlugin;/);
+  assert.match(dts, /tui:\s*TuiPlugin;/);
+  assert.match(dts, /export default _default;/);
 });

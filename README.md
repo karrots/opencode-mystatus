@@ -25,7 +25,9 @@ Run the local loader from this repository:
 ./load-local-plugin.sh
 ```
 
-The loader copies `plugin/mystatus.ts` and `plugin/lib/*.ts` into `~/.config/opencode/plugins`, where OpenCode auto-discovers local `*.ts` plugins. It also removes stale files from the old `~/.config/opencode/plugin` and `~/.config/opencode/command` locations.
+The loader copies `plugin/mystatus.ts` and `plugin/lib/*.ts` into `~/.config/opencode/plugins`, where OpenCode auto-discovers local `*.ts` plugins. For opencode2, it also installs `plugins/opencode-mystatus/tui.tsx` and its libraries, and sets `cli.json` to `"./plugins/opencode-mystatus"`. Recent v2 releases skip direct file entries such as `"./plugins/mystatus-tui.tsx"`; rerun the loader to migrate that configuration. The V1 `tui.json` entry remains supported.
+
+It also removes stale files from the old `~/.config/opencode/plugin` and `~/.config/opencode/command` locations.
 
 Do not add `opencode-mystatus` to the `plugin` array for local development. Do not configure `command.mystatus` in `~/.config/opencode/opencode.json`; the plugin registers `/mystatus` itself.
 

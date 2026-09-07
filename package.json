@@ -5,13 +5,17 @@
   "type": "module",
   "main": "dist/plugin/mystatus.js",
   "types": "dist/plugin/mystatus.d.ts",
+  "oc-plugin": [
+    "server",
+    "tui"
+  ],
   "exports": {
     ".": {
       "import": "./dist/plugin/mystatus.js",
       "types": "./dist/plugin/mystatus.d.ts"
     },
     "./tui": {
-      "import": "./dist/plugin/mystatus-tui.js",
+      "import": "./dist/plugin/mystatus-tui.jsx",
       "types": "./dist/plugin/mystatus-tui.d.ts"
     }
   },
@@ -23,7 +27,7 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && node --test test/status.test.mjs",
+    "test": "npm run build && node --test test/*.test.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -55,9 +59,9 @@
   "dependencies": {
     "@opencode-ai/plugin": "^1.15.10",
     "@opencode-ai/sdk": "^1.15.10",
-    "@opentui/core": "^0.2.15",
-    "@opentui/keymap": "^0.2.15",
-    "@opentui/solid": "^0.2.15",
+    "@opentui/core": "^0.5.6",
+    "@opentui/keymap": "^0.5.6",
+    "@opentui/solid": "^0.5.6",
     "solid-js": "^1.9.12",
     "zod": "^4.4.3"
   },

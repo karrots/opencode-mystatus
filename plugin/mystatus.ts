@@ -1,4 +1,4 @@
-import type { Plugin } from "@opencode-ai/plugin";
+import type { Hooks, Plugin } from "@opencode-ai/plugin";
 
 import { getStatusText } from "./lib/status.js";
 
@@ -7,6 +7,24 @@ import { getStatusText } from "./lib/status.js";
 // ============================================================================
 
 export const MyStatusPlugin: Plugin = async (ctx) => {
+  const v2Ctx = ctx as unknown as {
+    command?: {
+      transform?: unknown;
+    };
+  };
+
+  if (typeof v2Ctx.command?.transform === "function") {
+    // OpenCode V2: the /mystatus slash command and the quota sidebar are
+    // provided by the TUI entrypoint (plugin/mystatus-tui.tsx). V2 plugins
+    // cannot inject new commands or intercept command execution, so there is
+    // no server-side work to do. V2 setup only accepts void or a cleanup
+    // function, so return nothing (the cast only satisfies the V1 Plugin
+    // signature below).
+    return undefined as unknown as Hooks;
+  }
+
+  // OpenCode V1: register the command in config and intercept its execution
+  // to inject the status text without an LLM round trip.
   return {
     config: async (cfg) => {
       cfg.command ??= {};
@@ -38,4 +56,16 @@ export const MyStatusPlugin: Plugin = async (ctx) => {
   };
 };
 
-export default MyStatusPlugin;
+export const setup: Plugin = MyStatusPlugin;
+export const server: Plugin = MyStatusPlugin;
+
+const pluginModule = {
+  id: "opencode-mystatus",
+  setup: MyStatusPlugin,
+  server: MyStatusPlugin,
+  // The TUI entrypoint (plugin/mystatus-tui.tsx) ships with this package;
+  // OpenCode V2 loads its `./tui` export when this flag is set.
+  tui: true,
+};
+
+export default pluginModule;
