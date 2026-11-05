@@ -6,23 +6,25 @@ process.env.LANG = "en_US.UTF-8";
 const { formatStatusResults, getStatusText } =
   await import("../dist/plugin/lib/status.js");
 
+const account = { id: "fixture", name: "quota account", observedAt: 0, windows: [] };
+
 test("formatStatusResults combines successful providers and failures", () => {
   const output = formatStatusResults([
-    { title: "## Provider One", result: { success: true, output: "quota ok" } },
-    { title: "## Provider Two", result: null },
-    { title: "## Provider Three", result: { success: false, error: "failed" } },
+    { id: "openai", result: { success: true, accounts: [account] } },
+    { id: "zhipu", result: null },
+    { id: "google", result: { success: false, error: "failed" } },
   ]);
 
-  assert.match(output, /## Provider One/);
-  assert.match(output, /quota ok/);
+  assert.match(output, /## OpenAI/);
+  assert.match(output, /quota account/);
   assert.match(output, /Failed to query accounts/);
   assert.match(output, /failed/);
 });
 
 test("formatStatusResults reports no accounts when every provider is skipped", () => {
   const output = formatStatusResults([
-    { title: "## Provider One", result: null },
-    { title: "## Provider Two", result: null },
+    { id: "openai", result: null },
+    { id: "google", result: null },
   ]);
 
   assert.match(output, /No configured accounts found/);
@@ -41,7 +43,7 @@ test("getStatusText reads auth and passes provider-specific auth data", async ()
       }),
     queryOpenAI: async (authData) => {
       calls.push(["openai", authData?.access]);
-      return { success: true, output: "openai quota" };
+      return { success: true, accounts: [account] };
     },
     queryZhipu: async (authData) => {
       calls.push(["zhipu", authData?.key]);
@@ -66,7 +68,7 @@ test("getStatusText reads auth and passes provider-specific auth data", async ()
   });
 
   assert.match(output, /OpenAI Account Quota/);
-  assert.match(output, /openai quota/);
+  assert.match(output, /quota account/);
   assert.deepEqual(calls, [
     ["openai", "openai-token"],
     ["zhipu", "zhipu-key"],

@@ -33,10 +33,23 @@ Do not add `opencode-mystatus` to the `plugin` array for local development. Do n
 
 ### 2. Provide Credentials
 
-The local scripts fetch data using configurations found at these paths:
+**OpenCode V2:** OpenAI and Synthetic quotas use the active provider account on the server. Connect OpenAI using ChatGPT OAuth; connect Synthetic using an API key. In the TUI, run `/connect`, select **Synthetic**, and follow the API-key prompt. If Synthetic is already connected, its account list lets you add or activate an account.
 
-- **OpenAI Keys:** Configured in `~/.local/share/opencode/auth.json`
-- **Copilot / Antigravity Accounts:** Configured in `~/.config/opencode/antigravity-accounts.json`
+You can also enter the Synthetic key interactively from a terminal:
+
+```bash
+opencode auth login synthetic --method key
+```
+
+OpenCode saves the key in its server credential store. MyStatus resolves the active account on every refresh, queries Synthetic on the server, and returns only quota data to the TUI. No MyStatus-specific key file or manual `auth.json` editing is needed. An existing V2 connection works without re-entering its key. Account changes appear on the next sidebar refresh (up to 60 seconds), or immediately when you run `/mystatus`.
+
+**Other credential sources:**
+
+- **OpenCode V1:** OpenAI and Synthetic continue using `~/.local/share/opencode/auth.json`.
+- **Zhipu, Z.ai, and Copilot:** Currently use the legacy credential sources, including `~/.local/share/opencode/auth.json`.
+- **Antigravity accounts:** `~/.config/opencode/antigravity-accounts.json`.
+
+After updating this feature, reload both the server plugin and the TUI plugin. See [OpenCode's provider account guide](https://opencode.ai/v2/docs/cli/providers) for credential entry and account management.
 
 ### 3. Restart OpenCode
 

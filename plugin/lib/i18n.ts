@@ -61,6 +61,10 @@ const translations = {
     // 通用
     account: "Account:",
     unknown: "未知",
+    unlimited: "无限",
+    awaitingRefresh: "等待刷新",
+    staleQuota: "旧数据",
+    configurationTitle: "## MyStatus 配置",
     used: "已用",
     remainingLabel: "剩余",
     fullResetLabel: "完全重置",
@@ -92,8 +96,6 @@ const translations = {
       `Z.ai API 请求失败 (${status}): ${text}`,
     syntheticApiError: (status: number, text: string) =>
       `Synthetic API 请求失败 (${status}): ${text}`,
-    syntheticRollingLimit: "5 小时滚动限额",
-    syntheticWeeklyLimit: "每周 Token 预算",
     syntheticSearchLimit: "每小时搜索配额",
     zhipuTokensLimit: "5 小时 Token 限额",
     zhipuMcpLimit: "MCP 月度配额",
@@ -151,6 +153,10 @@ const translations = {
     // 通用
     account: "Account:",
     unknown: "unknown",
+    unlimited: "Unlimited",
+    awaitingRefresh: "Awaiting refresh",
+    staleQuota: "Stale",
+    configurationTitle: "## MyStatus configuration",
     used: "Used",
     remainingLabel: "Remaining",
     fullResetLabel: "Full Reset",
@@ -182,8 +188,6 @@ const translations = {
       `Z.ai API request failed (${status}): ${text}`,
     syntheticApiError: (status: number, text: string) =>
       `Synthetic API request failed (${status}): ${text}`,
-    syntheticRollingLimit: "5-hour rolling limit",
-    syntheticWeeklyLimit: "Weekly token budget",
     syntheticSearchLimit: "Hourly search quota",
     zhipuTokensLimit: "5-hour token limit",
     zhipuMcpLimit: "MCP monthly quota",
@@ -235,3 +239,7 @@ export const currentLang = detectLanguage();
 
 /** 翻译函数 */
 export const t = translations[currentLang];
+
+export function getTranslations(language: Language = currentLang) {
+  return translations[language];
+}

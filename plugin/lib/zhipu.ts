@@ -14,14 +14,11 @@ import {
   HIGH_USAGE_THRESHOLD,
 } from "./types.js";
 import {
-  formatDuration,
-  createProgressBar,
-  calcRemainPercent,
-  formatTokens,
   fetchWithTimeout,
   safeMax,
   maskString,
 } from "./utils.js";
+import { nonnegative, remainingPercent, reportedAt, type QuotaAccount, type QuotaWindow } from "./quota.js";
 
 // ============================================================================
 // 类型定义
@@ -112,68 +109,29 @@ async function fetchUsage(
 /**
  * 格式化智谱 AI 使用情况
  */
-function formatZhipuUsage(
+function zhipuAccount(
   data: QuotaLimitResponse,
   apiKey: string,
   accountLabel: string,
-): string {
-  const lines: string[] = [];
-  const limits = data.data.limits;
-
-  // 标题行：Account: API Key (Plan) - 显示脱敏后的 key
-  const maskedKey = maskString(apiKey);
-  lines.push(`${t.account}        ${maskedKey} (${accountLabel})`);
-  lines.push("");
-
-  // 空数组检查
-  if (!limits || limits.length === 0) {
-    lines.push(t.noQuotaData);
-    return lines.join("\n");
+): QuotaAccount {
+  const limits = data.data.limits ?? [];
+  const windows: QuotaWindow[] = [];
+  for (const [type, kind] of [["TOKENS_LIMIT", "tokens"], ["TIME_LIMIT", "mcp"]] as const) {
+    const limit = limits.find((item) => item.type === type);
+    if (!limit) continue;
+    windows.push({
+      id: type, kind, unlimited: false,
+      remainingPercent: remainingPercent(limit.percentage),
+      used: nonnegative(limit.currentValue), total: nonnegative(limit.usage),
+      unit: kind === "tokens" ? "tokens" : "requests",
+      times: kind === "tokens" ? [{ kind: "reset", at: reportedAt(limit.nextResetTime) }] : [],
+    });
   }
-
-  // 查找 TOKENS_LIMIT（5小时 Token 限额）
-  const tokensLimit = limits.find((l) => l.type === "TOKENS_LIMIT");
-  if (tokensLimit) {
-    const remainPercent = calcRemainPercent(tokensLimit.percentage);
-    const progressBar = createProgressBar(remainPercent);
-
-    lines.push(t.zhipuTokensLimit);
-    lines.push(`${progressBar} ${t.remaining(remainPercent)}`);
-    lines.push(
-      `${t.used}: ${formatTokens(tokensLimit.currentValue)} / ${formatTokens(tokensLimit.usage)}`,
-    );
-
-    // 重置时间
-    if (tokensLimit.nextResetTime) {
-      const resetSeconds = Math.max(
-        0,
-        Math.floor((tokensLimit.nextResetTime - Date.now()) / 1000),
-      );
-      lines.push(t.resetIn(formatDuration(resetSeconds)));
-    }
-  }
-
-  // 查找 TIME_LIMIT（MCP 搜索次数）
-  const timeLimit = limits.find((l) => l.type === "TIME_LIMIT");
-  if (timeLimit) {
-    if (tokensLimit) lines.push(""); // 分隔符
-
-    const remainPercent = calcRemainPercent(timeLimit.percentage);
-    const progressBar = createProgressBar(remainPercent);
-
-    lines.push(t.zhipuMcpLimit);
-    lines.push(`${progressBar} ${t.remaining(remainPercent)}`);
-    lines.push(`${t.used}: ${timeLimit.currentValue} / ${timeLimit.usage}`);
-  }
-
-  // 警告：如果任一限额使用率超过阈值
-  const maxPercentage = safeMax(limits.map((l) => l.percentage));
-  if (maxPercentage >= HIGH_USAGE_THRESHOLD) {
-    lines.push("");
-    lines.push(t.limitReached);
-  }
-
-  return lines.join("\n");
+  return {
+    id: accountLabel, name: maskString(apiKey), plan: accountLabel,
+    observedAt: Date.now(), windows,
+    warning: safeMax(limits.map((limit) => limit.percentage)) >= HIGH_USAGE_THRESHOLD,
+  };
 }
 
 // ============================================================================
@@ -187,15 +145,16 @@ async function queryUsage(
   config: PlatformConfig,
 ): Promise<QueryResult | null> {
   // 检查账号是否存在且有效
-  if (!authData || authData.type !== "api" || !authData.key) {
-    return null;
+  if (authData === undefined) return null;
+  if (!authData || authData.type !== "api" || typeof authData.key !== "string" || !authData.key.trim()) {
+    return { success: false, error: `${config.accountLabel} requires an API key. Update the provider connection.` };
   }
 
   try {
     const usage = await fetchUsage(authData.key, config);
     return {
       success: true,
-      output: formatZhipuUsage(usage, authData.key, config.accountLabel),
+      accounts: [zhipuAccount(usage, authData.key, config.accountLabel)],
     };
   } catch (err) {
     return {

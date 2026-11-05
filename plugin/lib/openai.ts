@@ -9,12 +9,8 @@
 
 import { t } from "./i18n.js";
 import { type QueryResult, type OpenAIAuthData } from "./types.js";
-import {
-  formatDuration,
-  createProgressBar,
-  calcRemainPercent,
-  fetchWithTimeout,
-} from "./utils.js";
+import { fetchWithTimeout } from "./utils.js";
+import { nonnegative, remainingPercent, relativeReset, type QuotaAccount, type QuotaWindow } from "./quota.js";
 
 // ============================================================================
 // 类型定义
@@ -95,49 +91,36 @@ function getAccountIdFromJwt(token: string): string | null {
 /**
  * 将窗口时长（秒）转换为可读的窗口名称
  */
-function formatWindowName(seconds: number): string {
-  const days = Math.round(seconds / 86400);
-
-  if (days >= 1) {
-    return t.dayLimit(days);
-  }
-  return t.hourLimit(Math.round(seconds / 3600));
-}
-
-/**
- * 格式化单个窗口的使用情况
- */
-function formatWindow(window: RateLimitWindow): string[] {
-  const windowName = formatWindowName(window.limit_window_seconds);
-  const remainPercent = calcRemainPercent(window.used_percent);
-  const progressBar = createProgressBar(remainPercent);
-  const resetTime = formatDuration(window.reset_after_seconds);
-
-  return [
-    windowName,
-    `${progressBar} ${t.remaining(remainPercent)}`,
-    t.resetIn(resetTime),
-  ];
+function quotaWindow(window: RateLimitWindow, id: string, observedAt: number): QuotaWindow {
+  return {
+    id, kind: "window",
+    durationSeconds: nonnegative(window.limit_window_seconds) || undefined,
+    remainingPercent: remainingPercent(window.used_percent),
+    unlimited: false,
+    times: [{ kind: "reset", at: relativeReset(window.reset_after_seconds, observedAt) }],
+  };
 }
 
 // ============================================================================
 // API 调用
 // ============================================================================
 
-const OPENAI_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
+class OpenAIUsageError extends Error {}
 
+const OPENAI_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
 /**
  * 获取 OpenAI 使用情况
  */
 async function fetchOpenAIUsage(
   accessToken: string,
+  accountID?: string,
 ): Promise<OpenAIUsageResponse> {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${accessToken}`,
     "User-Agent": "OpenCode-Status-Plugin/1.0",
   };
 
-  const accountId = getAccountIdFromJwt(accessToken);
+  const accountId = accountID ?? getAccountIdFromJwt(accessToken);
   if (accountId) {
     headers["ChatGPT-Account-Id"] = accountId;
   }
@@ -147,8 +130,14 @@ async function fetchOpenAIUsage(
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(t.apiError(response.status, errorText));
+    throw new OpenAIUsageError(
+      t.apiError(
+        response.status,
+        response.status === 401
+          ? "Reconnect OpenAI with /connect."
+          : "OpenAI quota request failed.",
+      ),
+    );
   }
 
   return response.json() as Promise<OpenAIUsageResponse>;
@@ -161,36 +150,21 @@ async function fetchOpenAIUsage(
 /**
  * 格式化 OpenAI 使用情况
  */
-function formatOpenAIUsage(
+function openAIAccount(
   data: OpenAIUsageResponse,
   email: string | null,
-): string {
+  id: string,
+): QuotaAccount {
   const { plan_type, rate_limit } = data;
-  const lines: string[] = [];
-
-  // 标题行：Account: email (plan)
-  const accountDisplay = email || t.unknown;
-  lines.push(`${t.account}        ${accountDisplay} (${plan_type})`);
-  lines.push("");
-
-  // 主窗口
+  const observedAt = Date.now();
+  const windows: QuotaWindow[] = [];
   if (rate_limit?.primary_window) {
-    lines.push(...formatWindow(rate_limit.primary_window));
+    windows.push(quotaWindow(rate_limit.primary_window, "primary", observedAt));
   }
-
-  // 次窗口（如果存在）
   if (rate_limit?.secondary_window) {
-    lines.push("");
-    lines.push(...formatWindow(rate_limit.secondary_window));
+    windows.push(quotaWindow(rate_limit.secondary_window, "secondary", observedAt));
   }
-
-  // 限额状态提示
-  if (rate_limit?.limit_reached) {
-    lines.push("");
-    lines.push(t.limitReached);
-  }
-
-  return lines.join("\n");
+  return { id, name: email ?? "OpenAI", plan: plan_type, observedAt, windows, warning: rate_limit?.limit_reached ?? false };
 }
 
 // ============================================================================
@@ -208,29 +182,28 @@ export async function queryOpenAIUsage(
   authData: OpenAIAuthData | undefined,
 ): Promise<QueryResult | null> {
   // 检查账号是否存在且有效
-  if (!authData || authData.type !== "oauth" || !authData.access) {
-    return null;
-  }
-
-  // 检查 OAuth token 是否过期
-  if (authData.expires && authData.expires < Date.now()) {
-    return {
-      success: false,
-      error: t.tokenExpired,
-    };
+  if (authData === undefined) return null;
+  if (!authData || authData.type !== "oauth" || typeof authData.access !== "string" || !authData.access.trim()) {
+    return { success: false, error: "OpenAI quota requires a ChatGPT OAuth connection. Reconnect with /connect." };
   }
 
   try {
     const email = getEmailFromJwt(authData.access);
-    const usage = await fetchOpenAIUsage(authData.access);
+    const usage = await fetchOpenAIUsage(
+      authData.access,
+      authData.metadata?.accountID,
+    );
     return {
       success: true,
-      output: formatOpenAIUsage(usage, email),
+      accounts: [openAIAccount(usage, email, authData.metadata?.accountID ?? getAccountIdFromJwt(authData.access) ?? email ?? "openai")],
     };
   } catch (err) {
     return {
       success: false,
-      error: err instanceof Error ? err.message : String(err),
+      error:
+        err instanceof OpenAIUsageError
+          ? err.message
+          : "OpenAI quota request failed. Check the connection and try again.",
     };
   }
 }

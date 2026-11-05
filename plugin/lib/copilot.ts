@@ -18,7 +18,8 @@ import {
   type CopilotQuotaConfig,
   type CopilotTier,
 } from "./types.js";
-import { createProgressBar, fetchWithTimeout } from "./utils.js";
+import { fetchWithTimeout } from "./utils.js";
+import { nonnegative, percent, reportedAt, type QuotaAccount, type QuotaWindow } from "./quota.js";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
@@ -126,19 +127,16 @@ const COPILOT_HEADERS = {
 
 /**
  * Read optional Copilot quota config from user's config file
- * Returns null if file doesn't exist or is invalid
+ * Only a missing file means unconfigured; invalid configuration is actionable.
  */
 function readQuotaConfig(): CopilotQuotaConfig | null {
   try {
-    if (!fs.existsSync(COPILOT_QUOTA_CONFIG_PATH)) {
-      return null;
-    }
     const content = fs.readFileSync(COPILOT_QUOTA_CONFIG_PATH, "utf-8");
     const config = JSON.parse(content) as CopilotQuotaConfig;
 
     // Validate required fields
-    if (!config.token || !config.username || !config.tier) {
-      return null;
+    if (!config || typeof config.token !== "string" || !config.token.trim() || typeof config.username !== "string" || !config.username.trim() || !config.tier) {
+      throw new Error("Invalid config");
     }
 
     // Validate tier is valid
@@ -150,12 +148,13 @@ function readQuotaConfig(): CopilotQuotaConfig | null {
       "enterprise",
     ];
     if (!validTiers.includes(config.tier)) {
-      return null;
+      throw new Error("Invalid tier");
     }
 
     return config;
-  } catch {
-    return null;
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return null;
+    throw new Error("Invalid or unreadable copilot-quota-token.json. Set token, username and a supported tier (free, pro, pro+, business, enterprise).");
   }
 }
 
@@ -319,97 +318,22 @@ async function fetchCopilotUsage(
 /**
  * Format a single quota line
  */
-function formatQuotaLine(
-  name: string,
-  quota: QuotaDetail | undefined,
-  width: number = 20,
-): string {
-  if (!quota) return "";
-
-  if (quota.unlimited) {
-    return `${name.padEnd(14)} Unlimited`;
+function copilotAccount(data: CopilotUsageResponse): QuotaAccount {
+  const windows: QuotaWindow[] = [];
+  for (const [key, kind] of [["premium_interactions", "premium"], ["chat", "chat"], ["completions", "completions"]] as const) {
+    const quota = data.quota_snapshots?.[key];
+    if (!quota) continue;
+    const total = nonnegative(quota.entitlement);
+    const remaining = nonnegative(quota.remaining);
+    windows.push({
+      id: key, kind, unlimited: quota.unlimited === true,
+      remainingPercent: quota.unlimited ? null : percent(quota.percent_remaining),
+      total, used: total !== undefined && remaining !== undefined ? Math.max(0, total - remaining) : undefined,
+      unit: "requests", overage: kind === "premium" ? nonnegative(quota.overage_count) : undefined,
+      times: quota.unlimited ? [] : [{ kind: "reset", at: reportedAt(data.quota_reset_date) }],
+    });
   }
-
-  const total = quota.entitlement;
-  const used = total - quota.remaining;
-  const percentRemaining = Math.round(quota.percent_remaining);
-  const progressBar = createProgressBar(percentRemaining, width);
-
-  return `${name.padEnd(14)} ${progressBar} ${percentRemaining}% (${used}/${total})`;
-}
-
-/**
- * Calculate days until reset
- */
-function getResetCountdown(resetDate: string): string {
-  const reset = new Date(resetDate);
-  const now = new Date();
-  const diffMs = reset.getTime() - now.getTime();
-
-   if (Number.isNaN(reset.getTime())) return t.unknown;
-
-  if (diffMs <= 0) return t.resetsSoon;
-
-  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-
-  if (days > 0) {
-    return `${days}d ${hours}h`;
-  }
-  return `${hours}h`;
-}
-
-/**
- * Format GitHub Copilot usage information
- */
-function formatCopilotUsage(data: CopilotUsageResponse): string {
-  const lines: string[] = [];
-
-  // Account info
-  lines.push(`${t.account}        GitHub Copilot (${data.copilot_plan})`);
-  lines.push("");
-
-  // Check if quota_snapshots exists
-  if (!data.quota_snapshots) {
-    lines.push(t.noQuotaData);
-    return lines.join("\n");
-  }
-
-  // Premium requests (main quota)
-  const premium = data.quota_snapshots.premium_interactions;
-  if (premium) {
-    const premiumLine = formatQuotaLine(t.premiumRequests, premium);
-    if (premiumLine) lines.push(premiumLine);
-
-    // Show overage info if applicable
-    if (premium.overage_count > 0) {
-      lines.push(`${t.overage}: ${premium.overage_count} ${t.overageRequests}`);
-    }
-  }
-
-  // Chat quota (if separate)
-  const chat = data.quota_snapshots.chat;
-  if (chat && !chat.unlimited) {
-    const chatLine = formatQuotaLine(t.chatQuota, chat);
-    if (chatLine) lines.push(chatLine);
-  }
-
-  // Completions quota (if separate)
-  const completions = data.quota_snapshots.completions;
-  if (completions && !completions.unlimited) {
-    const completionsLine = formatQuotaLine(t.completionsQuota, completions);
-    if (completionsLine) lines.push(completionsLine);
-  }
-
-  // Reset date
-  lines.push("");
-  const resetDate = data.quota_reset_date ?? t.unknown;
-  const resetCountdown = data.quota_reset_date
-    ? getResetCountdown(data.quota_reset_date)
-    : t.unknown;
-  lines.push(`${t.quotaResets}: ${resetCountdown} (${resetDate})`);
-
-  return lines.join("\n");
+  return { id: "copilot", name: "GitHub Copilot", plan: data.copilot_plan, observedAt: Date.now(), windows };
 }
 
 // Copilot plan limits (premium requests per month)
@@ -427,16 +351,10 @@ const COPILOT_PLAN_LIMITS: Record<CopilotTier, number> = {
  * Different structure from internal API - aggregates usage items
  * Uses grossQuantity (total requests made) since netQuantity shows post-discount amount
  */
-function formatPublicBillingUsage(
+function publicBillingAccount(
   data: BillingUsageResponse,
   tier: CopilotTier,
-): string {
-  const lines: string[] = [];
-
-  // Account info
-  lines.push(`${t.account}        GitHub Copilot (@${data.user})`);
-  lines.push("");
-
+): QuotaAccount {
   // Aggregate all premium request usage (sum grossQuantity across all models)
   const premiumItems = data.usageItems.filter(
     (item) =>
@@ -451,40 +369,28 @@ function formatPublicBillingUsage(
   // Get limit from tier
   const limit = COPILOT_PLAN_LIMITS[tier];
 
-  const remaining = Math.max(0, limit - totalUsed);
-  const percentRemaining = Math.round((remaining / limit) * 100);
-  const progressBar = createProgressBar(percentRemaining, 20);
-  lines.push(
-    `${t.premiumRequests.padEnd(14)} ${progressBar} ${percentRemaining}% (${totalUsed}/${limit})`,
-  );
-
   // Show model breakdown
   const modelItems = data.usageItems.filter(
     (item) => item.model && item.grossQuantity > 0,
   );
 
-  if (modelItems.length > 0) {
-    lines.push("");
-    lines.push(t.modelBreakdown || "Model breakdown:");
-    // Sort by usage descending
-    const sortedItems = [...modelItems].sort(
-      (a, b) => b.grossQuantity - a.grossQuantity,
-    );
-    for (const item of sortedItems.slice(0, 5)) {
-      // Show top 5 models
-      lines.push(`  ${item.model}: ${item.grossQuantity} ${item.unitType}`);
-    }
-  }
-
   // Time period info
-  lines.push("");
   const period = data.timePeriod;
   const periodStr = period.month
     ? `${period.year}-${String(period.month).padStart(2, "0")}`
     : `${period.year}`;
-  lines.push(`${t.billingPeriod || "Period"}: ${periodStr}`);
-
-  return lines.join("\n");
+  return {
+    id: data.user, name: `@${data.user}`, plan: tier, observedAt: Date.now(),
+    windows: [{
+      id: "premium", kind: "premium", unlimited: false,
+      remainingPercent: nonnegative(totalUsed) === undefined ? null : percent((limit - totalUsed) / limit * 100),
+      used: nonnegative(totalUsed), total: limit, unit: "requests", times: [],
+    }],
+    billingPeriod: periodStr,
+    modelUsage: [...modelItems].sort((a, b) => b.grossQuantity - a.grossQuantity).slice(0, 5)
+      .filter((item) => nonnegative(item.grossQuantity) !== undefined)
+      .map((item) => ({ name: item.model!, used: item.grossQuantity, unit: item.unitType })),
+  };
 }
 
 // ============================================================================
@@ -502,13 +408,18 @@ export async function queryCopilotUsage(
   authData: CopilotAuthData | undefined,
 ): Promise<QueryResult | null> {
   // Strategy 1: Try public billing API with user's fine-grained PAT
-  const quotaConfig = readQuotaConfig();
+  let quotaConfig: CopilotQuotaConfig | null;
+  try {
+    quotaConfig = readQuotaConfig();
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Invalid Copilot quota configuration." };
+  }
   if (quotaConfig) {
     try {
       const billingUsage = await fetchPublicBillingUsage(quotaConfig);
       return {
         success: true,
-        output: formatPublicBillingUsage(billingUsage, quotaConfig.tier),
+        accounts: [publicBillingAccount(billingUsage, quotaConfig.tier)],
       };
     } catch (err) {
       // PAT config exists but failed - report the error
@@ -521,16 +432,17 @@ export async function queryCopilotUsage(
 
   // Strategy 2: Try internal API with OAuth token (legacy, may not work with new OpenCode auth)
   // Check if account exists and has a refresh token (the GitHub OAuth token)
-  if (!authData || authData.type !== "oauth" || !authData.refresh) {
-    // No auth data and no PAT config - not configured, skip silently
-    return null;
+  if (authData === undefined) return null;
+  const token = authData?.refresh || authData?.access;
+  if (!authData || authData.type !== "oauth" || typeof token !== "string" || !token.trim()) {
+    return { success: false, error: "Copilot requires OAuth credentials or a valid copilot-quota-token.json. Update the connection." };
   }
 
   try {
     const usage = await fetchCopilotUsage(authData);
     return {
       success: true,
-      output: formatCopilotUsage(usage),
+      accounts: [copilotAccount(usage)],
     };
   } catch (err) {
     return {

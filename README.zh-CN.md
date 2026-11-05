@@ -12,14 +12,14 @@
 
 ## 支持的平台
 
-| 平台         | 账号类型          | 数据来源                                       |
-| ------------ | ----------------- | ---------------------------------------------- |
-| OpenAI       | Plus / Team / Pro | `~/.local/share/opencode/auth.json`            |
-| 智谱 AI      | Coding Plan       | `~/.local/share/opencode/auth.json`            |
-| Z.ai         | Coding Plan       | `~/.local/share/opencode/auth.json`            |
-| Synthetic    | API Key           | `~/.local/share/opencode/auth.json`            |
+| 平台           | 账号类型              | 数据来源                                       |
+| -------------- | --------------------- | ---------------------------------------------- |
+| OpenAI         | Plus / Team / Pro     | V2 服务端活动账号；V1 使用 `auth.json`          |
+| 智谱 AI        | Coding Plan           | `~/.local/share/opencode/auth.json`            |
+| Z.ai           | Coding Plan           | `~/.local/share/opencode/auth.json`            |
+| Synthetic      | API Key               | V2 服务端活动账号；V1 使用 `auth.json`          |
 | GitHub Copilot | Individual / Business | `~/.local/share/opencode/auth.json`            |
-| Google Cloud | Antigravity       | `~/.config/opencode/antigravity-accounts.json` |
+| Google Cloud   | Antigravity           | `~/.config/opencode/antigravity-accounts.json` |
 
 ## 安装
 
@@ -128,9 +128,19 @@ Claude     2d 9h      ░░░░░░░░░░░░░░░░░░░�
 
 ## 配置
 
-无需额外配置。插件自动从以下位置读取认证信息：
+**OpenCode V2 的 OpenAI 和 Synthetic：** 插件使用服务端的活动账号。OpenAI 需要 ChatGPT OAuth；Synthetic 使用 API Key。在 TUI 中运行 `/connect`，选择 **Synthetic**，按提示输入 API Key。已连接时可在账号列表中添加或切换活动账号。
 
-- **OpenAI、智谱 AI、Z.ai、Synthetic 和 GitHub Copilot**: `~/.local/share/opencode/auth.json`
+也可以在终端中交互式输入：
+
+```bash
+opencode auth login synthetic --method key
+```
+
+密钥由 OpenCode 保存在服务端认证存储中。MyStatus 每次刷新都会解析当前活动账号，在服务端查询额度，只向 TUI 返回额度数据，不需要创建插件专用密钥文件或手动修改 `auth.json`。已有 V2 连接无需重新输入密钥。切换账号后会在下一次侧栏刷新（最多 60 秒）或运行 `/mystatus` 时更新。更新插件后需要重新加载服务端和 TUI 插件。
+
+其他认证来源：
+
+- **OpenCode V1 的 OpenAI 和 Synthetic，以及智谱 AI、Z.ai、GitHub Copilot**: `~/.local/share/opencode/auth.json`
 - **Google Cloud**: `~/.config/opencode/antigravity-accounts.json`
 
 ### Google Cloud 设置

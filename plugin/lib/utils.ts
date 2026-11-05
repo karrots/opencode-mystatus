@@ -5,7 +5,7 @@
  * [同步]: openai.ts, zhipu.ts, google.ts
  */
 
-import { t, currentLang } from "./i18n.js";
+import { t, currentLang, getTranslations, type Language } from "./i18n.js";
 import { REQUEST_TIMEOUT_MS } from "./types.js";
 
 // ============================================================================
@@ -15,7 +15,8 @@ import { REQUEST_TIMEOUT_MS } from "./types.js";
 /**
  * 将秒数转换为人类可读的时间格式
  */
-export function formatDuration(seconds: number): string {
+export function formatDuration(seconds: number, language: Language = currentLang): string {
+  const t = getTranslations(language);
   const days = Math.floor(seconds / 86400);
   const hours = Math.floor((seconds % 86400) / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
@@ -25,7 +26,7 @@ export function formatDuration(seconds: number): string {
   if (hours > 0) parts.push(t.hours(hours));
   if (minutes > 0 || parts.length === 0) parts.push(t.minutes(minutes));
 
-  return parts.join(currentLang === "en" ? " " : "");
+  return parts.join(language === "en" ? " " : "");
 }
 
 // ============================================================================

@@ -1,5 +1,7 @@
 import type { Hooks, Plugin } from "@opencode-ai/plugin";
 
+import { registerOpenAIQuota, type OpenAIQuotaHost } from "./lib/openai-rpc.js";
+
 import { getStatusText } from "./lib/status.js";
 
 // ============================================================================
@@ -14,13 +16,10 @@ export const MyStatusPlugin: Plugin = async (ctx) => {
   };
 
   if (typeof v2Ctx.command?.transform === "function") {
-    // OpenCode V2: the /mystatus slash command and the quota sidebar are
-    // provided by the TUI entrypoint (plugin/mystatus-tui.tsx). V2 plugins
-    // cannot inject new commands or intercept command execution, so there is
-    // no server-side work to do. V2 setup only accepts void or a cleanup
-    // function, so return nothing (the cast only satisfies the V1 Plugin
-    // signature below).
-    return undefined as unknown as Hooks;
+    const cleanup = await registerOpenAIQuota(
+      ctx as unknown as OpenAIQuotaHost,
+    );
+    return cleanup as unknown as Hooks;
   }
 
   // OpenCode V1: register the command in config and intercept its execution

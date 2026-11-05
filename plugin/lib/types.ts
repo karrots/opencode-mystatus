@@ -12,11 +12,7 @@
 /**
  * 平台查询结果
  */
-export interface QueryResult {
-  success: boolean;
-  output?: string;
-  error?: string;
-}
+export type { QuotaResult as QueryResult } from "./quota.js";
 
 // ============================================================================
 // 认证数据类型
@@ -27,6 +23,7 @@ export interface QueryResult {
  */
 export interface OpenAIAuthData {
   type: string;
+  metadata?: { accountID?: string };
   access?: string;
   refresh?: string;
   expires?: number;
